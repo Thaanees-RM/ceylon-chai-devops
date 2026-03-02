@@ -1,0 +1,47 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Deploy to QA
+      if: github.ref == 'refs/heads/develop'
+      uses: appleboy/ssh-action@v0.1.10
+      with:
+        host: ${{ secrets.QA_HOST }}
+        username: ${{ secrets.QA_USER }}
+        key: ${{ secrets.QA_SSH_KEY }}
+        script: |
+          cd ~/ceylon-chai-devops || git clone https://github.com/Thaanees-RM/ceylon-chai-devops.git
+          cd ceylon-chai-devops
+          git pull origin develop
+          docker stop chai || true
+          docker rm chai || true
+          docker build -t chai .
+          docker run -d --name chai -p 80:80 chai
+
+    - name: Deploy to Production
+      if: github.ref == 'refs/heads/main'
+      uses: appleboy/ssh-action@v0.1.10
+      with:
+        host: ${{ secrets.PROD_HOST }}
+        username: ${{ secrets.PROD_USER }}
+        key: ${{ secrets.PROD_SSH_KEY }}
+        script: |
+          cd ~/ceylon-chai-devops || git clone https://github.com/YOUR_USERNAME/ceylon-chai-devops.git
+          cd ceylon-chai-devops
+          git pull origin main
+          docker stop chai || true
+          docker rm chai || true
+          docker build -t chai .
+          docker run -d --name chai -p 80:80 chai
