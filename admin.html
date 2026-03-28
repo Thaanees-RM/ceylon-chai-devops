@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ceylon Chai Admin Panel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="admin-shell">
+        <header class="admin-header">
+            <h1>Ceylon Chai Admin Panel</h1>
+            <p>Update menu, prices, food photos, shop details, and announcements.</p>
+            <div class="admin-actions">
+                <a href="index.html" class="btn btn-secondary">View Website</a>
+                <button id="saveAllBtn" class="btn btn-primary" type="button">Save All Changes</button>
+                <button id="resetBtn" class="btn btn-danger" type="button">Reset To Default</button>
+            </div>
+            <div id="statusMessage" class="status" aria-live="polite"></div>
+        </header>
+
+        <main class="admin-main">
+            <section class="card">
+                <h2>Store Information</h2>
+                <div class="grid two-col">
+                    <label>Phone Number
+                        <input id="storePhone" type="text" placeholder="+94 70 392 3931">
+                    </label>
+                    <label>Address
+                        <input id="storeAddress" type="text" placeholder="Sri Lanka">
+                    </label>
+                    <label>Opening Days
+                        <input id="storeOpeningDays" type="text" placeholder="Every Day">
+                    </label>
+                    <label>Opening Hours
+                        <input id="storeOpeningHours" type="text" placeholder="5:00 PM - 2:00 AM">
+                    </label>
+                    <label>Instagram Handle
+                        <input id="storeInstagramHandle" type="text" placeholder="@ceylon_chaii">
+                    </label>
+                    <label>Instagram URL
+                        <input id="storeInstagramUrl" type="url" placeholder="https://www.instagram.com/ceylon_chaii">
+                    </label>
+                    <label class="full">Google Maps URL
+                        <input id="storeMapUrl" type="url" placeholder="https://maps.app.goo.gl/...">
+                    </label>
+                    <label class="full">Announcement / Offer
+                        <textarea id="storeAnnouncement" rows="3" placeholder="Weekend offer: 10% off selected tea and food combos."></textarea>
+                    </label>
+                    <div class="full image-field">
+                        <div class="image-field-head">
+                            <label for="storeLogoFile">Shop Logo / Icon</label>
+                            <button id="clearStoreLogoBtn" class="btn btn-secondary btn-sm" type="button">Clear Logo</button>
+                        </div>
+                        <input id="storeLogoFile" type="file" accept="image/*">
+                        <div class="image-preview-wrap">
+                            <img id="storeLogoPreview" class="image-preview logo-preview" alt="Logo preview" src="images/logo.jpeg">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-head">
+                    <h2>Menu Items</h2>
+                    <button id="addMenuItemBtn" class="btn btn-primary" type="button">Add New Item</button>
+                </div>
+                <div id="menuItemsContainer" class="menu-items"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,284 @@
+* {
+    box-sizing: border-box;
+}
+
+:root {
+    --bg: #0f1619;
+    --card: #1c282d;
+    --card-2: #233238;
+    --line: rgba(255, 255, 255, 0.12);
+    --text: #eaf1f4;
+    --muted: #a3b8c2;
+    --accent: #e88742;
+    --danger: #dc4c44;
+}
+
+body {
+    margin: 0;
+    background: radial-gradient(circle at top right, #26343b 0%, var(--bg) 45%);
+    color: var(--text);
+    font-family: 'Quicksand', sans-serif;
+    min-height: 100vh;
+}
+
+.admin-shell {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.admin-header {
+    background: rgba(28, 40, 45, 0.85);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 20px;
+    backdrop-filter: blur(8px);
+}
+
+.admin-header h1 {
+    margin: 0 0 8px;
+    font-family: 'Playfair Display', serif;
+    font-size: 36px;
+}
+
+.admin-header p {
+    margin: 0;
+    color: var(--muted);
+}
+
+.admin-actions {
+    margin-top: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.btn {
+    border: none;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-sm {
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #e88742, #ff6b35);
+    color: #fff;
+}
+
+.btn-secondary {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--text);
+}
+
+.btn-danger {
+    background: var(--danger);
+    color: #fff;
+}
+
+.status {
+    min-height: 24px;
+    margin-top: 12px;
+    color: #9de5a6;
+    font-weight: 600;
+}
+
+.admin-main {
+    margin-top: 18px;
+    display: grid;
+    gap: 16px;
+}
+
+.card {
+    background: rgba(28, 40, 45, 0.85);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 18px;
+}
+
+.card h2 {
+    margin: 0 0 14px;
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+}
+
+.card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.grid {
+    display: grid;
+    gap: 12px;
+}
+
+.two-col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+label.full {
+    grid-column: 1 / -1;
+}
+
+input,
+textarea,
+select {
+    width: 100%;
+    margin-top: 6px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--card-2);
+    color: var(--text);
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.menu-items {
+    display: grid;
+    gap: 12px;
+}
+
+.menu-item {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px;
+    background: rgba(35, 50, 56, 0.7);
+}
+
+.menu-item-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.menu-item-title {
+    margin: 0;
+    font-size: 16px;
+}
+
+.menu-item-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.image-field {
+    border: 1px dashed var(--line);
+    border-radius: 12px;
+    padding: 12px;
+    background: rgba(35, 50, 56, 0.45);
+}
+
+.image-field-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.image-preview-wrap {
+    margin-top: 10px;
+}
+
+.image-preview {
+    width: 100%;
+    max-width: 260px;
+    height: 120px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    object-fit: cover;
+    background: #111;
+}
+
+.logo-preview {
+    width: 90px;
+    height: 90px;
+    max-width: none;
+    object-fit: contain;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+@media (max-width: 800px) {
+    .admin-shell {
+        padding: 14px;
+    }
+
+    .admin-header,
+    .card {
+        padding: 14px;
+    }
+
+    .admin-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .admin-actions .btn {
+        width: 100%;
+    }
+
+    .card-head {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .card-head .btn {
+        width: 100%;
+    }
+
+    .two-col,
+    .menu-item-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-header h1 {
+        font-size: 28px;
+    }
+
+    .image-field-head {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .image-field-head .btn {
+        width: 100%;
+    }
+
+    .image-preview {
+        max-width: 100%;
+        height: 150px;
+    }
+
+    .logo-preview {
+        width: 74px;
+        height: 74px;
+    }
+}

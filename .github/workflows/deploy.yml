@@ -1,0 +1,164 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ceylon-chai-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: CI - Validate And Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate Required Files
+        run: |
+          set -e
+          test -f index.html
+          test -f styles.css
+          test -f app.js
+          test -f admin.html
+          test -f admin.css
+          test -f admin.js
+          test -f Dockerfile
+
+      - name: Build Docker Image
+        run: |
+          docker build -t ceylon-chai:${{ github.sha }} .
+
+      - name: Run Container Smoke Test
+        run: |
+          set -e
+          docker run -d --name ceylon-chai-ci -p 8081:80 ceylon-chai:${{ github.sha }}
+          sleep 3
+          curl --fail --show-error --silent http://127.0.0.1:8081/index.html > /dev/null
+          curl --fail --show-error --silent http://127.0.0.1:8081/admin.html > /dev/null
+
+      - name: Cleanup Test Container
+        if: always()
+        run: |
+          docker rm -f ceylon-chai-ci || true
+
+  deploy_qa:
+    name: CD - Deploy QA
+    runs-on: ubuntu-latest
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    environment:
+      name: qa
+
+    steps:
+      - name: Validate QA Environment Secrets
+        run: |
+          missing=0
+          if [ -z "${{ secrets.DEPLOY_HOST }}" ]; then
+            echo "ERROR: Missing secret DEPLOY_HOST in environment 'qa'"
+            missing=1
+          fi
+          if [ -z "${{ secrets.DEPLOY_USER }}" ]; then
+            echo "ERROR: Missing secret DEPLOY_USER in environment 'qa'"
+            missing=1
+          fi
+          if [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]; then
+            echo "ERROR: Missing secret DEPLOY_SSH_KEY in environment 'qa'"
+            missing=1
+          fi
+          if [ "$missing" -eq 1 ]; then
+            echo "Add the missing environment secrets in: Settings > Environments > qa > Secrets"
+            exit 1
+          fi
+
+      - name: Deploy To QA Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            REPO_DIR=~/ceylon-chai-devops
+            REPO_URL=https://github.com/${{ github.repository }}.git
+
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              git clone "$REPO_URL" "$REPO_DIR"
+            fi
+
+            cd "$REPO_DIR"
+            git fetch --all --prune
+            git checkout develop
+            git reset --hard origin/develop
+
+            docker stop chai || true
+            docker rm chai || true
+            docker build -t chai:qa .
+            docker run -d --name chai --restart unless-stopped -p 80:80 chai:qa
+
+  deploy_production:
+    name: CD - Deploy Production
+    runs-on: ubuntu-latest
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: production
+
+    steps:
+      - name: Validate Production Environment Secrets
+        run: |
+          missing=0
+          if [ -z "${{ secrets.DEPLOY_HOST }}" ]; then
+            echo "ERROR: Missing secret DEPLOY_HOST in environment 'production'"
+            missing=1
+          fi
+          if [ -z "${{ secrets.DEPLOY_USER }}" ]; then
+            echo "ERROR: Missing secret DEPLOY_USER in environment 'production'"
+            missing=1
+          fi
+          if [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]; then
+            echo "ERROR: Missing secret DEPLOY_SSH_KEY in environment 'production'"
+            missing=1
+          fi
+          if [ "$missing" -eq 1 ]; then
+            echo "Add the missing environment secrets in: Settings > Environments > production > Secrets"
+            exit 1
+          fi
+
+      - name: Deploy To Production Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            REPO_DIR=~/ceylon-chai-devops
+            REPO_URL=https://github.com/${{ github.repository }}.git
+
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              git clone "$REPO_URL" "$REPO_DIR"
+            fi
+
+            cd "$REPO_DIR"
+            git fetch --all --prune
+            git checkout main
+            git reset --hard origin/main
+
+            docker stop chai || true
+            docker rm chai || true
+            docker build -t chai:prod .
+            docker run -d --name chai --restart unless-stopped -p 80:80 chai:prod
