@@ -159,7 +159,7 @@
             const [toastMessage, setToastMessage] = useState('');
             const [isToastVisible, setIsToastVisible] = useState(false);
             const [toastKey, setToastKey] = useState(0);
-            const [menuItems, setMenuItems] = useState(DEFAULT_MENU_ITEMS);
+            const [menuItems, setMenuItems] = useState([]);
             const [storeInfo, setStoreInfo] = useState(DEFAULT_STORE_INFO);
 
             const reviews = [
@@ -242,7 +242,7 @@
 
                         if (storedMenu) {
                             const parsedMenu = JSON.parse(storedMenu);
-                            if (Array.isArray(parsedMenu) && parsedMenu.length > 0 && !cancelled) {
+                            if (Array.isArray(parsedMenu) && !cancelled) {
                                 setMenuItems(parsedMenu);
                             }
                         }
@@ -344,7 +344,7 @@
                     if (event.key === MENU_STORAGE_KEY && event.newValue) {
                         try {
                             const nextMenu = JSON.parse(event.newValue);
-                            if (Array.isArray(nextMenu) && nextMenu.length > 0) {
+                            if (Array.isArray(nextMenu)) {
                                 setMenuItems(nextMenu);
                             }
                         } catch (error) {

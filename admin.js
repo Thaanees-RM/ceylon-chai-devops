@@ -398,7 +398,7 @@ async function loadFromSupabase() {
         throw menuError;
     }
 
-    if (Array.isArray(menuData) && menuData.length > 0) {
+    if (Array.isArray(menuData)) {
         menuItems = menuData.map(item => ({
             id: item.id,
             category: item.category,
