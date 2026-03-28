@@ -250,6 +250,39 @@
             }, []);
 
             useEffect(() => {
+                if (supabase) {
+                    return undefined;
+                }
+
+                const handleStorageSync = (event) => {
+                    if (event.key === MENU_STORAGE_KEY && event.newValue) {
+                        try {
+                            const nextMenu = JSON.parse(event.newValue);
+                            if (Array.isArray(nextMenu) && nextMenu.length > 0) {
+                                setMenuItems(nextMenu);
+                            }
+                        } catch (error) {
+                            console.error('Failed to sync menu from local storage event:', error);
+                        }
+                    }
+
+                    if (event.key === STORE_STORAGE_KEY && event.newValue) {
+                        try {
+                            const nextStore = JSON.parse(event.newValue);
+                            if (nextStore && typeof nextStore === 'object') {
+                                setStoreInfo(prev => ({ ...prev, ...nextStore }));
+                            }
+                        } catch (error) {
+                            console.error('Failed to sync store from local storage event:', error);
+                        }
+                    }
+                };
+
+                window.addEventListener('storage', handleStorageSync);
+                return () => window.removeEventListener('storage', handleStorageSync);
+            }, [supabase]);
+
+            useEffect(() => {
                 // Scroll event listener
                 const handleScroll = () => {
                     setShowScrollTop(window.scrollY > 300);
@@ -633,6 +666,11 @@
                             {cartCount > 0 && <div className="cart-count">{cartCount}</div>}
                         </div>
                     </div>
+
+                    <a href="admin.html" target="_blank" rel="noreferrer" className="admin-float-btn" aria-label="Open Admin Panel">
+                        <i className="fas fa-user-cog"></i>
+                        <span>Admin</span>
+                    </a>
 
                     {/* Scroll to Top */}
                     <div 

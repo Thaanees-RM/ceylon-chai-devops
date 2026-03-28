@@ -978,6 +978,37 @@
             transform: translateY(-5px);
         }
 
+        .admin-float-btn {
+            position: fixed;
+            right: 24px;
+            bottom: 108px;
+            z-index: 999;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: #fff;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: 0.2px;
+            padding: 10px 14px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, rgba(212, 165, 116, 0.95), rgba(232, 135, 66, 0.95));
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(8px);
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
+        }
+
+        .admin-float-btn i {
+            font-size: 14px;
+        }
+
+        .admin-float-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.4);
+        }
+
         .cart-toast {
             position: fixed;
             right: 24px;
@@ -1311,6 +1342,13 @@
                 height: 44px;
             }
 
+            .admin-float-btn {
+                right: 14px;
+                bottom: 82px;
+                padding: 9px 12px;
+                font-size: 13px;
+            }
+
             .cta-buttons {
                 flex-direction: column;
             }
@@ -1318,7 +1356,7 @@
             .cart-toast {
                 right: 12px;
                 left: 12px;
-                bottom: 86px;
+                bottom: 136px;
                 max-width: none;
                 padding: 12px 14px;
             }

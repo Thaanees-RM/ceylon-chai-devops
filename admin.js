@@ -207,7 +207,7 @@ async function saveAll() {
     if (!supabaseClient) {
         localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(menuItems));
         localStorage.setItem(STORE_STORAGE_KEY, JSON.stringify(storeInfo));
-        showStatus('Saved locally (Supabase not configured).');
+        showStatus('Saved locally in this browser.');
         return;
     }
 
@@ -439,13 +439,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             menuItems = parseStoredData(MENU_STORAGE_KEY, JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS)));
             storeInfo = { ...DEFAULT_STORE_INFO, ...parseStoredData(STORE_STORAGE_KEY, {}) };
-            showStatus('Supabase not configured. Using local browser storage.', true);
+            showStatus('Supabase not configured. Local browser mode is active.');
         }
     } catch (error) {
         console.error(error);
         menuItems = parseStoredData(MENU_STORAGE_KEY, JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS)));
         storeInfo = { ...DEFAULT_STORE_INFO, ...parseStoredData(STORE_STORAGE_KEY, {}) };
-        showStatus('Cloud load failed. Using local browser storage.', true);
+        showStatus('Cloud load failed. Local browser mode is active.');
     }
 
     fillStoreForm();
