@@ -20,7 +20,20 @@
             background: var(--dark-bg);
             color: var(--tea-cream);
             overflow-x: hidden;
-            cursor: default;
+            cursor: auto;
+        }
+
+        /* Safety override: keep only native arrow cursor everywhere. */
+        html, body, body * {
+            cursor: auto !important;
+        }
+
+        .custom-cursor,
+        .cursor-follower {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
         }
 
         /* Animated Background */
