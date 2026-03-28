@@ -24,6 +24,17 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build Production JS
+        run: |
+          set -e
+          npx --yes --package @babel/core --package @babel/cli --package @babel/preset-react \
+            babel app.js --out-file app.bundle.js --presets @babel/preset-react
+
       - name: Prepare Static Site
         run: |
           set -e
@@ -32,10 +43,13 @@ jobs:
           cp index.html site/
           cp styles.css site/
           cp app.js site/
+          cp app.bundle.js site/
           cp supabase-config.js site/
           cp admin.html site/
           cp admin.css site/
           cp admin.js site/
+
+          perl -0777 -i -pe "s#\n\s*<script src=\"https://unpkg.com/\@babel/standalone/babel\.min\.js\"></script>##s; s#<script type=\"text/babel\" src=\"app\.js\?v=[^\"]+\"></script>#<script defer src=\"app.bundle.js\"></script>#s" site/index.html
 
           if [ -d images ]; then
             cp -r images site/images
