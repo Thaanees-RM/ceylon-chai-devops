@@ -109,6 +109,24 @@ on public.store_settings for all
 using (true)
 with check (true);
 
+-- Enable realtime broadcasts for immediate frontend updates when admin saves.
+do $$
+begin
+  begin
+    alter publication supabase_realtime add table public.menu_items;
+  exception
+    when duplicate_object then null;
+    when undefined_object then null;
+  end;
+
+  begin
+    alter publication supabase_realtime add table public.store_settings;
+  exception
+    when duplicate_object then null;
+    when undefined_object then null;
+  end;
+end $$;
+
 -- Storage bucket for uploaded images.
 insert into storage.buckets (id, name, public)
 values ('assets', 'assets', true)

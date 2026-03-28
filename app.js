@@ -114,6 +114,41 @@
             logoImage: DEFAULT_LOGO_IMAGE
         };
 
+        function normalizeMenuItems(menuData) {
+            if (!Array.isArray(menuData) || menuData.length === 0) {
+                return null;
+            }
+
+            return menuData.map(item => ({
+                id: item.id,
+                category: item.category,
+                name: item.name,
+                description: item.description || '',
+                price: item.price || '',
+                image: item.image || '',
+                badge: item.badge || ''
+            }));
+        }
+
+        function normalizeStoreInfo(storeData, previousStoreInfo) {
+            if (!storeData) {
+                return previousStoreInfo;
+            }
+
+            return {
+                ...previousStoreInfo,
+                openingDays: storeData.opening_days || previousStoreInfo.openingDays,
+                openingHours: storeData.opening_hours || previousStoreInfo.openingHours,
+                phone: storeData.phone || previousStoreInfo.phone,
+                address: storeData.address || previousStoreInfo.address,
+                mapUrl: storeData.map_url || previousStoreInfo.mapUrl,
+                instagramHandle: storeData.instagram_handle || previousStoreInfo.instagramHandle,
+                instagramUrl: storeData.instagram_url || previousStoreInfo.instagramUrl,
+                announcement: storeData.announcement || previousStoreInfo.announcement,
+                logoImage: storeData.logo_image || previousStoreInfo.logoImage
+            };
+        }
+
         function CeylonChaiApp() {
             const supabase = getSupabaseClient();
             const [activeCategory, setActiveCategory] = useState('all');
@@ -182,16 +217,8 @@
                                 .select('*')
                                 .order('id', { ascending: true });
 
-                            if (!menuError && Array.isArray(menuData) && menuData.length > 0 && !cancelled) {
-                                const normalizedMenu = menuData.map(item => ({
-                                    id: item.id,
-                                    category: item.category,
-                                    name: item.name,
-                                    description: item.description || '',
-                                    price: item.price || '',
-                                    image: item.image || '',
-                                    badge: item.badge || ''
-                                }));
+                            const normalizedMenu = normalizeMenuItems(menuData);
+                            if (!menuError && normalizedMenu && !cancelled) {
                                 setMenuItems(normalizedMenu);
                             }
 
@@ -202,18 +229,7 @@
                                 .single();
 
                             if (!storeError && storeData && !cancelled) {
-                                setStoreInfo(prev => ({
-                                    ...prev,
-                                    openingDays: storeData.opening_days || prev.openingDays,
-                                    openingHours: storeData.opening_hours || prev.openingHours,
-                                    phone: storeData.phone || prev.phone,
-                                    address: storeData.address || prev.address,
-                                    mapUrl: storeData.map_url || prev.mapUrl,
-                                    instagramHandle: storeData.instagram_handle || prev.instagramHandle,
-                                    instagramUrl: storeData.instagram_url || prev.instagramUrl,
-                                    announcement: storeData.announcement || prev.announcement,
-                                    logoImage: storeData.logo_image || prev.logoImage
-                                }));
+                                setStoreInfo(prev => normalizeStoreInfo(storeData, prev));
                             }
 
                             if (!menuError || !storeError) {
@@ -246,6 +262,76 @@
 
                 return () => {
                     cancelled = true;
+                };
+            }, []);
+
+            useEffect(() => {
+                if (!supabase) {
+                    return undefined;
+                }
+
+                let cancelled = false;
+                let refreshTimer = null;
+
+                const refreshFromCloud = async () => {
+                    try {
+                        const [{ data: menuData }, { data: storeData, error: storeError }] = await Promise.all([
+                            supabase
+                                .from(MENU_TABLE)
+                                .select('*')
+                                .order('id', { ascending: true }),
+                            supabase
+                                .from(STORE_TABLE)
+                                .select('*')
+                                .eq('id', 1)
+                                .single()
+                        ]);
+
+                        if (cancelled) {
+                            return;
+                        }
+
+                        const normalizedMenu = normalizeMenuItems(menuData);
+                        if (normalizedMenu) {
+                            setMenuItems(normalizedMenu);
+                        }
+
+                        if (!storeError && storeData) {
+                            setStoreInfo(prev => normalizeStoreInfo(storeData, prev));
+                        }
+                    } catch (error) {
+                        console.error('Realtime sync refresh failed:', error);
+                    }
+                };
+
+                const queueRefresh = () => {
+                    if (refreshTimer) {
+                        clearTimeout(refreshTimer);
+                    }
+
+                    refreshTimer = setTimeout(() => {
+                        refreshFromCloud();
+                    }, 220);
+                };
+
+                const channel = supabase
+                    .channel('ceylon-chai-live-sync')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: MENU_TABLE }, queueRefresh)
+                    .on('postgres_changes', { event: '*', schema: 'public', table: STORE_TABLE }, queueRefresh)
+                    .subscribe((status) => {
+                        if (status === 'SUBSCRIBED') {
+                            queueRefresh();
+                        }
+                    });
+
+                return () => {
+                    cancelled = true;
+
+                    if (refreshTimer) {
+                        clearTimeout(refreshTimer);
+                    }
+
+                    supabase.removeChannel(channel);
                 };
             }, []);
 
