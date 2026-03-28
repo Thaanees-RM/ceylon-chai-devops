@@ -2,6 +2,20 @@
 
         const MENU_STORAGE_KEY = 'ceylonChaiMenuItems';
         const STORE_STORAGE_KEY = 'ceylonChaiStoreInfo';
+        const MENU_TABLE = window.SUPABASE_MENU_TABLE || 'menu_items';
+        const STORE_TABLE = window.SUPABASE_STORE_TABLE || 'store_settings';
+
+        function getSupabaseClient() {
+            if (!window.supabase) {
+                return null;
+            }
+
+            if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) {
+                return null;
+            }
+
+            return window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+        }
 
         const DEFAULT_MENU_ITEMS = [
             {
@@ -100,6 +114,7 @@
         };
 
         function CeylonChaiApp() {
+            const supabase = getSupabaseClient();
             const [activeCategory, setActiveCategory] = useState('all');
             const [cartCount, setCartCount] = useState(0);
             const [showScrollTop, setShowScrollTop] = useState(false);
@@ -156,26 +171,81 @@
             }, []);
 
             useEffect(() => {
-                try {
-                    const storedMenu = localStorage.getItem(MENU_STORAGE_KEY);
-                    const storedStore = localStorage.getItem(STORE_STORAGE_KEY);
+                let cancelled = false;
 
-                    if (storedMenu) {
-                        const parsedMenu = JSON.parse(storedMenu);
-                        if (Array.isArray(parsedMenu) && parsedMenu.length > 0) {
-                            setMenuItems(parsedMenu);
-                        }
-                    }
+                const loadData = async () => {
+                    try {
+                        if (supabase) {
+                            const { data: menuData, error: menuError } = await supabase
+                                .from(MENU_TABLE)
+                                .select('*')
+                                .order('id', { ascending: true });
 
-                    if (storedStore) {
-                        const parsedStore = JSON.parse(storedStore);
-                        if (parsedStore && typeof parsedStore === 'object') {
-                            setStoreInfo(prev => ({ ...prev, ...parsedStore }));
+                            if (!menuError && Array.isArray(menuData) && menuData.length > 0 && !cancelled) {
+                                const normalizedMenu = menuData.map(item => ({
+                                    id: item.id,
+                                    category: item.category,
+                                    name: item.name,
+                                    description: item.description || '',
+                                    price: item.price || '',
+                                    image: item.image || '',
+                                    badge: item.badge || ''
+                                }));
+                                setMenuItems(normalizedMenu);
+                            }
+
+                            const { data: storeData, error: storeError } = await supabase
+                                .from(STORE_TABLE)
+                                .select('*')
+                                .eq('id', 1)
+                                .single();
+
+                            if (!storeError && storeData && !cancelled) {
+                                setStoreInfo(prev => ({
+                                    ...prev,
+                                    openingDays: storeData.opening_days || prev.openingDays,
+                                    openingHours: storeData.opening_hours || prev.openingHours,
+                                    phone: storeData.phone || prev.phone,
+                                    address: storeData.address || prev.address,
+                                    mapUrl: storeData.map_url || prev.mapUrl,
+                                    instagramHandle: storeData.instagram_handle || prev.instagramHandle,
+                                    instagramUrl: storeData.instagram_url || prev.instagramUrl,
+                                    announcement: storeData.announcement || prev.announcement,
+                                    logoImage: storeData.logo_image || prev.logoImage
+                                }));
+                            }
+
+                            if (!menuError || !storeError) {
+                                return;
+                            }
                         }
+
+                        const storedMenu = localStorage.getItem(MENU_STORAGE_KEY);
+                        const storedStore = localStorage.getItem(STORE_STORAGE_KEY);
+
+                        if (storedMenu) {
+                            const parsedMenu = JSON.parse(storedMenu);
+                            if (Array.isArray(parsedMenu) && parsedMenu.length > 0 && !cancelled) {
+                                setMenuItems(parsedMenu);
+                            }
+                        }
+
+                        if (storedStore) {
+                            const parsedStore = JSON.parse(storedStore);
+                            if (parsedStore && typeof parsedStore === 'object' && !cancelled) {
+                                setStoreInfo(prev => ({ ...prev, ...parsedStore }));
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Failed to load saved store data:', error);
                     }
-                } catch (error) {
-                    console.error('Failed to load saved store data:', error);
-                }
+                };
+
+                loadData();
+
+                return () => {
+                    cancelled = true;
+                };
             }, []);
 
             useEffect(() => {

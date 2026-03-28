@@ -1,5 +1,8 @@
 const MENU_STORAGE_KEY = 'ceylonChaiMenuItems';
 const STORE_STORAGE_KEY = 'ceylonChaiStoreInfo';
+const MENU_TABLE = window.SUPABASE_MENU_TABLE || 'menu_items';
+const STORE_TABLE = window.SUPABASE_STORE_TABLE || 'store_settings';
+const STORAGE_BUCKET = window.SUPABASE_STORAGE_BUCKET || 'assets';
 
 const DEFAULT_MENU_ITEMS = [
     { id: 1, category: 'tea', name: 'Baathaam Tea', description: 'Rich aromatic tea with traditional spices and herbs', price: 'Rs. 250', image: 'https://images.unsplash.com/photo-1594631252845-29fc4cc8cde9?w=500', badge: 'Popular' },
@@ -28,6 +31,16 @@ const DEFAULT_STORE_INFO = {
 let menuItems = [];
 let storeInfo = {};
 
+function getSupabaseClient() {
+    if (!window.supabase || !window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) {
+        return null;
+    }
+
+    return window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+}
+
+const supabase = getSupabaseClient();
+
 function parseStoredData(key, fallback) {
     try {
         const raw = localStorage.getItem(key);
@@ -50,7 +63,7 @@ function showStatus(message, isError = false) {
 
     setTimeout(() => {
         status.textContent = '';
-    }, 2400);
+    }, 3200);
 }
 
 function fillStoreForm() {
@@ -86,6 +99,23 @@ function fileToDataUrl(file) {
         reader.onerror = () => reject(new Error('Image read failed'));
         reader.readAsDataURL(file);
     });
+}
+
+async function uploadImageFile(file, folder) {
+    if (!supabase) {
+        return fileToDataUrl(file);
+    }
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
+    const filePath = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`;
+    const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, file, { upsert: true });
+
+    if (error) {
+        throw error;
+    }
+
+    const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+    return data.publicUrl;
 }
 
 function renderMenuItems() {
@@ -161,13 +191,83 @@ function addMenuItem() {
     renderMenuItems();
 }
 
-function saveAll() {
+async function saveAll() {
     storeInfo = collectStoreForm();
 
-    localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(menuItems));
-    localStorage.setItem(STORE_STORAGE_KEY, JSON.stringify(storeInfo));
+    if (!supabase) {
+        localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(menuItems));
+        localStorage.setItem(STORE_STORAGE_KEY, JSON.stringify(storeInfo));
+        showStatus('Saved locally (Supabase not configured).');
+        return;
+    }
 
-    showStatus('Saved successfully. Refresh the main website to see updates.');
+    try {
+        const menuPayload = menuItems.map(item => ({
+            id: Number(item.id),
+            category: item.category,
+            name: item.name,
+            description: item.description || '',
+            price: item.price || '',
+            image: item.image || '',
+            badge: item.badge || ''
+        }));
+
+        if (menuPayload.length > 0) {
+            const { error: upsertMenuError } = await supabase
+                .from(MENU_TABLE)
+                .upsert(menuPayload, { onConflict: 'id' });
+            if (upsertMenuError) {
+                throw upsertMenuError;
+            }
+
+            const { data: existingMenu, error: existingMenuError } = await supabase
+                .from(MENU_TABLE)
+                .select('id');
+            if (existingMenuError) {
+                throw existingMenuError;
+            }
+
+            const currentIds = menuPayload.map(item => item.id);
+            const staleIds = (existingMenu || [])
+                .map(item => item.id)
+                .filter(id => !currentIds.includes(id));
+
+            if (staleIds.length > 0) {
+                const { error: deleteMenuError } = await supabase
+                    .from(MENU_TABLE)
+                    .delete()
+                    .in('id', staleIds);
+                if (deleteMenuError) {
+                    throw deleteMenuError;
+                }
+            }
+        }
+
+        const storePayload = {
+            id: 1,
+            opening_days: storeInfo.openingDays,
+            opening_hours: storeInfo.openingHours,
+            phone: storeInfo.phone,
+            address: storeInfo.address,
+            map_url: storeInfo.mapUrl,
+            instagram_handle: storeInfo.instagramHandle,
+            instagram_url: storeInfo.instagramUrl,
+            announcement: storeInfo.announcement,
+            logo_image: storeInfo.logoImage
+        };
+
+        const { error: upsertStoreError } = await supabase
+            .from(STORE_TABLE)
+            .upsert(storePayload, { onConflict: 'id' });
+        if (upsertStoreError) {
+            throw upsertStoreError;
+        }
+
+        showStatus('Saved to cloud successfully. All devices will see updates.');
+    } catch (error) {
+        console.error(error);
+        showStatus('Cloud save failed. Check Supabase setup and policies.', true);
+    }
 }
 
 function resetToDefault() {
@@ -183,7 +283,7 @@ function resetToDefault() {
 
     fillStoreForm();
     renderMenuItems();
-    showStatus('Defaults restored. Save if you want to keep them.');
+    showStatus('Defaults restored. Click Save to publish them.');
 }
 
 document.addEventListener('click', (event) => {
@@ -236,10 +336,11 @@ document.addEventListener('change', async (event) => {
         }
 
         try {
-            storeInfo.logoImage = await fileToDataUrl(file);
+            storeInfo.logoImage = await uploadImageFile(file, 'logos');
             document.getElementById('storeLogoPreview').src = storeInfo.logoImage;
             showStatus('Logo uploaded. Click Save All Changes.');
         } catch (error) {
+            console.error(error);
             showStatus('Failed to upload logo image.', true);
         }
 
@@ -259,17 +360,83 @@ document.addEventListener('change', async (event) => {
     }
 
     try {
-        menuItems[index].image = await fileToDataUrl(file);
+        menuItems[index].image = await uploadImageFile(file, 'menu');
         renderMenuItems();
         showStatus('Menu image uploaded. Click Save All Changes.');
     } catch (error) {
+        console.error(error);
         showStatus('Failed to upload menu image.', true);
     }
 });
 
-document.addEventListener('DOMContentLoaded', () => {
-    menuItems = parseStoredData(MENU_STORAGE_KEY, JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS)));
-    storeInfo = { ...DEFAULT_STORE_INFO, ...parseStoredData(STORE_STORAGE_KEY, {}) };
+async function loadFromSupabase() {
+    const { data: menuData, error: menuError } = await supabase
+        .from(MENU_TABLE)
+        .select('*')
+        .order('id', { ascending: true });
+
+    if (menuError) {
+        throw menuError;
+    }
+
+    if (Array.isArray(menuData) && menuData.length > 0) {
+        menuItems = menuData.map(item => ({
+            id: item.id,
+            category: item.category,
+            name: item.name,
+            description: item.description || '',
+            price: item.price || '',
+            image: item.image || '',
+            badge: item.badge || ''
+        }));
+    } else {
+        menuItems = JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS));
+    }
+
+    const { data: storeData, error: storeError } = await supabase
+        .from(STORE_TABLE)
+        .select('*')
+        .eq('id', 1)
+        .single();
+
+    if (storeError && storeError.code !== 'PGRST116') {
+        throw storeError;
+    }
+
+    storeInfo = {
+        ...DEFAULT_STORE_INFO,
+        ...(storeData
+            ? {
+                openingDays: storeData.opening_days || DEFAULT_STORE_INFO.openingDays,
+                openingHours: storeData.opening_hours || DEFAULT_STORE_INFO.openingHours,
+                phone: storeData.phone || DEFAULT_STORE_INFO.phone,
+                address: storeData.address || DEFAULT_STORE_INFO.address,
+                mapUrl: storeData.map_url || DEFAULT_STORE_INFO.mapUrl,
+                instagramHandle: storeData.instagram_handle || DEFAULT_STORE_INFO.instagramHandle,
+                instagramUrl: storeData.instagram_url || DEFAULT_STORE_INFO.instagramUrl,
+                announcement: storeData.announcement || DEFAULT_STORE_INFO.announcement,
+                logoImage: storeData.logo_image || DEFAULT_STORE_INFO.logoImage
+            }
+            : {})
+    };
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        if (supabase) {
+            await loadFromSupabase();
+            showStatus('Connected to Supabase cloud data.');
+        } else {
+            menuItems = parseStoredData(MENU_STORAGE_KEY, JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS)));
+            storeInfo = { ...DEFAULT_STORE_INFO, ...parseStoredData(STORE_STORAGE_KEY, {}) };
+            showStatus('Supabase not configured. Using local browser storage.', true);
+        }
+    } catch (error) {
+        console.error(error);
+        menuItems = parseStoredData(MENU_STORAGE_KEY, JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS)));
+        storeInfo = { ...DEFAULT_STORE_INFO, ...parseStoredData(STORE_STORAGE_KEY, {}) };
+        showStatus('Cloud load failed. Using local browser storage.', true);
+    }
 
     fillStoreForm();
     renderMenuItems();
