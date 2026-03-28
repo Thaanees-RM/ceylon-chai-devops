@@ -251,6 +251,15 @@ async function saveAll() {
                     throw deleteMenuError;
                 }
             }
+        } else {
+            const { error: clearAllMenuError } = await supabaseClient
+                .from(MENU_TABLE)
+                .delete()
+                .gte('id', 0);
+
+            if (clearAllMenuError) {
+                throw clearAllMenuError;
+            }
         }
 
         const storePayload = {
@@ -348,7 +357,7 @@ document.addEventListener('change', async (event) => {
         try {
             storeInfo.logoImage = await uploadImageFile(file, 'logos');
             document.getElementById('storeLogoPreview').src = storeInfo.logoImage;
-            showStatus('Logo uploaded. Click Save All Changes.');
+            await saveAll();
         } catch (error) {
             console.error(error);
             showStatus('Failed to upload logo image.', true);
@@ -372,7 +381,7 @@ document.addEventListener('change', async (event) => {
     try {
         menuItems[index].image = await uploadImageFile(file, 'menu');
         renderMenuItems();
-        showStatus('Menu image uploaded. Click Save All Changes.');
+        await saveAll();
     } catch (error) {
         console.error(error);
         showStatus('Failed to upload menu image.', true);

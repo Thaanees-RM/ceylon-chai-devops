@@ -115,7 +115,7 @@
         };
 
         function normalizeMenuItems(menuData) {
-            if (!Array.isArray(menuData) || menuData.length === 0) {
+            if (!Array.isArray(menuData)) {
                 return null;
             }
 
