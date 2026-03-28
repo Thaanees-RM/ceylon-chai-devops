@@ -1,3 +1,12 @@
+(() => {
+'use strict';
+
+if (window.__ceylonAdminInitialized) {
+    console.warn('Admin script already initialized. Skipping duplicate load.');
+    return;
+}
+window.__ceylonAdminInitialized = true;
+
 const MENU_STORAGE_KEY = 'ceylonChaiMenuItems';
 const STORE_STORAGE_KEY = 'ceylonChaiStoreInfo';
 const MENU_TABLE = window.SUPABASE_MENU_TABLE || 'menu_items';
@@ -40,7 +49,7 @@ function getSupabaseClient() {
     return window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 }
 
-const supabase = getSupabaseClient();
+const supabaseClient = getSupabaseClient();
 
 function parseStoredData(key, fallback) {
     try {
@@ -103,19 +112,19 @@ function fileToDataUrl(file) {
 }
 
 async function uploadImageFile(file, folder) {
-    if (!supabase) {
+    if (!supabaseClient) {
         return fileToDataUrl(file);
     }
 
     const safeName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
     const filePath = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`;
-    const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, file, { upsert: true });
+    const { error } = await supabaseClient.storage.from(STORAGE_BUCKET).upload(filePath, file, { upsert: true });
 
     if (error) {
         throw error;
     }
 
-    const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+    const { data } = supabaseClient.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
     return data.publicUrl;
 }
 
@@ -195,7 +204,7 @@ function addMenuItem() {
 async function saveAll() {
     storeInfo = collectStoreForm();
 
-    if (!supabase) {
+    if (!supabaseClient) {
         localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(menuItems));
         localStorage.setItem(STORE_STORAGE_KEY, JSON.stringify(storeInfo));
         showStatus('Saved locally (Supabase not configured).');
@@ -214,14 +223,14 @@ async function saveAll() {
         }));
 
         if (menuPayload.length > 0) {
-            const { error: upsertMenuError } = await supabase
+            const { error: upsertMenuError } = await supabaseClient
                 .from(MENU_TABLE)
                 .upsert(menuPayload, { onConflict: 'id' });
             if (upsertMenuError) {
                 throw upsertMenuError;
             }
 
-            const { data: existingMenu, error: existingMenuError } = await supabase
+            const { data: existingMenu, error: existingMenuError } = await supabaseClient
                 .from(MENU_TABLE)
                 .select('id');
             if (existingMenuError) {
@@ -234,7 +243,7 @@ async function saveAll() {
                 .filter(id => !currentIds.includes(id));
 
             if (staleIds.length > 0) {
-                const { error: deleteMenuError } = await supabase
+                const { error: deleteMenuError } = await supabaseClient
                     .from(MENU_TABLE)
                     .delete()
                     .in('id', staleIds);
@@ -257,7 +266,7 @@ async function saveAll() {
             logo_image: storeInfo.logoImage
         };
 
-        const { error: upsertStoreError } = await supabase
+        const { error: upsertStoreError } = await supabaseClient
             .from(STORE_TABLE)
             .upsert(storePayload, { onConflict: 'id' });
         if (upsertStoreError) {
@@ -371,7 +380,7 @@ document.addEventListener('change', async (event) => {
 });
 
 async function loadFromSupabase() {
-    const { data: menuData, error: menuError } = await supabase
+    const { data: menuData, error: menuError } = await supabaseClient
         .from(MENU_TABLE)
         .select('*')
         .order('id', { ascending: true });
@@ -394,7 +403,7 @@ async function loadFromSupabase() {
         menuItems = JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS));
     }
 
-    const { data: storeData, error: storeError } = await supabase
+    const { data: storeData, error: storeError } = await supabaseClient
         .from(STORE_TABLE)
         .select('*')
         .eq('id', 1)
@@ -424,7 +433,7 @@ async function loadFromSupabase() {
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        if (supabase) {
+        if (supabaseClient) {
             await loadFromSupabase();
             showStatus('Connected to Supabase cloud data.');
         } else {
@@ -446,3 +455,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('saveAllBtn').addEventListener('click', saveAll);
     document.getElementById('resetBtn').addEventListener('click', resetToDefault);
 });
+
+})();
