@@ -66,9 +66,23 @@ jobs:
     steps:
       - name: Validate QA Environment Secrets
         run: |
-          test -n "${{ secrets.DEPLOY_HOST }}"
-          test -n "${{ secrets.DEPLOY_USER }}"
-          test -n "${{ secrets.DEPLOY_SSH_KEY }}"
+          missing=0
+          if [ -z "${{ secrets.DEPLOY_HOST }}" ]; then
+            echo "ERROR: Missing secret DEPLOY_HOST in environment 'qa'"
+            missing=1
+          fi
+          if [ -z "${{ secrets.DEPLOY_USER }}" ]; then
+            echo "ERROR: Missing secret DEPLOY_USER in environment 'qa'"
+            missing=1
+          fi
+          if [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]; then
+            echo "ERROR: Missing secret DEPLOY_SSH_KEY in environment 'qa'"
+            missing=1
+          fi
+          if [ "$missing" -eq 1 ]; then
+            echo "Add the missing environment secrets in: Settings > Environments > qa > Secrets"
+            exit 1
+          fi
 
       - name: Deploy To QA Server
         uses: appleboy/ssh-action@v1.0.3
@@ -106,9 +120,23 @@ jobs:
     steps:
       - name: Validate Production Environment Secrets
         run: |
-          test -n "${{ secrets.DEPLOY_HOST }}"
-          test -n "${{ secrets.DEPLOY_USER }}"
-          test -n "${{ secrets.DEPLOY_SSH_KEY }}"
+          missing=0
+          if [ -z "${{ secrets.DEPLOY_HOST }}" ]; then
+            echo "ERROR: Missing secret DEPLOY_HOST in environment 'production'"
+            missing=1
+          fi
+          if [ -z "${{ secrets.DEPLOY_USER }}" ]; then
+            echo "ERROR: Missing secret DEPLOY_USER in environment 'production'"
+            missing=1
+          fi
+          if [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]; then
+            echo "ERROR: Missing secret DEPLOY_SSH_KEY in environment 'production'"
+            missing=1
+          fi
+          if [ "$missing" -eq 1 ]; then
+            echo "Add the missing environment secrets in: Settings > Environments > production > Secrets"
+            exit 1
+          fi
 
       - name: Deploy To Production Server
         uses: appleboy/ssh-action@v1.0.3
