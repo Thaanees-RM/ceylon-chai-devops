@@ -3,6 +3,7 @@ const STORE_STORAGE_KEY = 'ceylonChaiStoreInfo';
 const MENU_TABLE = window.SUPABASE_MENU_TABLE || 'menu_items';
 const STORE_TABLE = window.SUPABASE_STORE_TABLE || 'store_settings';
 const STORAGE_BUCKET = window.SUPABASE_STORAGE_BUCKET || 'assets';
+const DEFAULT_LOGO_IMAGE = 'images/logo.svg';
 
 const DEFAULT_MENU_ITEMS = [
     { id: 1, category: 'tea', name: 'Baathaam Tea', description: 'Rich aromatic tea with traditional spices and herbs', price: 'Rs. 250', image: 'https://images.unsplash.com/photo-1594631252845-29fc4cc8cde9?w=500', badge: 'Popular' },
@@ -25,7 +26,7 @@ const DEFAULT_STORE_INFO = {
     instagramHandle: '@ceylon_chaii',
     instagramUrl: 'https://www.instagram.com/ceylon_chaii',
     announcement: 'Weekend offer: 10% off selected tea and food combos.',
-    logoImage: 'images/logo.jpeg'
+    logoImage: DEFAULT_LOGO_IMAGE
 };
 
 let menuItems = [];
@@ -75,7 +76,7 @@ function fillStoreForm() {
     document.getElementById('storeInstagramUrl').value = storeInfo.instagramUrl || '';
     document.getElementById('storeMapUrl').value = storeInfo.mapUrl || '';
     document.getElementById('storeAnnouncement').value = storeInfo.announcement || '';
-    document.getElementById('storeLogoPreview').src = storeInfo.logoImage || 'images/logo.jpeg';
+    document.getElementById('storeLogoPreview').src = storeInfo.logoImage || DEFAULT_LOGO_IMAGE;
 }
 
 function collectStoreForm() {
@@ -88,7 +89,7 @@ function collectStoreForm() {
         instagramUrl: document.getElementById('storeInstagramUrl').value.trim(),
         mapUrl: document.getElementById('storeMapUrl').value.trim(),
         announcement: document.getElementById('storeAnnouncement').value.trim(),
-        logoImage: storeInfo.logoImage || 'images/logo.jpeg'
+        logoImage: storeInfo.logoImage || DEFAULT_LOGO_IMAGE
     };
 }
 
@@ -169,11 +170,11 @@ function renderMenuItems() {
 
 function escapeHtml(value) {
     return String(value)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
 function addMenuItem() {
@@ -304,7 +305,7 @@ document.addEventListener('click', (event) => {
     }
 
     if (target.id === 'clearStoreLogoBtn') {
-        storeInfo.logoImage = 'images/logo.jpeg';
+        storeInfo.logoImage = DEFAULT_LOGO_IMAGE;
         document.getElementById('storeLogoPreview').src = storeInfo.logoImage;
     }
 });

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" role="img" aria-labelledby="title desc">
+  <title id="title">Ceylon Chai Logo</title>
+  <desc id="desc">Warm circular logo with a tea cup icon and Ceylon Chai text.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3a1f0f"/>
+      <stop offset="100%" stop-color="#8b4a1f"/>
+    </linearGradient>
+    <linearGradient id="cup" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f9e9cb"/>
+      <stop offset="100%" stop-color="#e6c88d"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" rx="160" fill="url(#bg)"/>
+  <circle cx="160" cy="160" r="145" fill="none" stroke="#f3d5a4" stroke-width="8"/>
+  <g transform="translate(85 90)">
+    <path d="M35 88h95a0 0 0 0 1 0 0v13a32 32 0 0 1-32 32H67a32 32 0 0 1-32-32V88a0 0 0 0 1 0 0z" fill="url(#cup)"/>
+    <path d="M130 96h10a18 18 0 0 1 0 36h-10" fill="none" stroke="#f3d5a4" stroke-width="8" stroke-linecap="round"/>
+    <path d="M55 78c0-8 6-13 6-21" fill="none" stroke="#f7e2b9" stroke-width="5" stroke-linecap="round"/>
+    <path d="M83 78c0-8 6-13 6-21" fill="none" stroke="#f7e2b9" stroke-width="5" stroke-linecap="round"/>
+    <path d="M111 78c0-8 6-13 6-21" fill="none" stroke="#f7e2b9" stroke-width="5" stroke-linecap="round"/>
+  </g>
+  <text x="160" y="258" text-anchor="middle" fill="#f8e3be" font-family="Georgia, 'Times New Roman', serif" font-size="34" font-weight="700">Ceylon Chai</text>
+</svg>

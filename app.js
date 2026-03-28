@@ -4,6 +4,7 @@
         const STORE_STORAGE_KEY = 'ceylonChaiStoreInfo';
         const MENU_TABLE = window.SUPABASE_MENU_TABLE || 'menu_items';
         const STORE_TABLE = window.SUPABASE_STORE_TABLE || 'store_settings';
+        const DEFAULT_LOGO_IMAGE = 'images/logo.svg';
 
         function getSupabaseClient() {
             if (!window.supabase) {
@@ -110,7 +111,7 @@
             instagramHandle: '@ceylon_chaii',
             instagramUrl: 'https://www.instagram.com/ceylon_chaii',
             announcement: 'Weekend offer: 10% off selected tea and food combos.',
-            logoImage: 'images/logo.jpeg'
+            logoImage: DEFAULT_LOGO_IMAGE
         };
 
         function CeylonChaiApp() {
@@ -365,7 +366,16 @@
                     <nav>
                         <div className="nav-content">
                             <div className="logo-container">
-                                <img src={storeInfo.logoImage || 'images/logo.jpeg'} alt="Ceylon Chai Logo" className="logo-img" />
+                                <img
+                                    src={storeInfo.logoImage || DEFAULT_LOGO_IMAGE}
+                                    alt="Ceylon Chai Logo"
+                                    className="logo-img"
+                                    onError={(event) => {
+                                        if (event.currentTarget.src.indexOf(DEFAULT_LOGO_IMAGE) === -1) {
+                                            event.currentTarget.src = DEFAULT_LOGO_IMAGE;
+                                        }
+                                    }}
+                                />
                                 <div className="logo-text">Ceylon Chai</div>
                             </div>
                             <ul className={`nav-links ${isMobileMenuOpen ? 'open' : ''}`}>

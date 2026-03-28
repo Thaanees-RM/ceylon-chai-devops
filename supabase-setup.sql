@@ -50,7 +50,7 @@ values (
   '@ceylon_chaii',
   'https://www.instagram.com/ceylon_chaii',
   'Weekend offer: 10% off selected tea and food combos.',
-  'images/logo.jpeg'
+  'images/logo.svg'
 )
 on conflict (id) do update
 set
