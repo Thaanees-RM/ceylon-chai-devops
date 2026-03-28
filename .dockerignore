@@ -1,0 +1,9 @@
+.git
+.github
+*.deb
+__pycache__/
+*.pyc
+*.pyo
+*.swp
+*.swo
+.DS_Store
