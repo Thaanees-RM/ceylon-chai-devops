@@ -5,6 +5,7 @@
         const MENU_TABLE = window.SUPABASE_MENU_TABLE || 'menu_items';
         const STORE_TABLE = window.SUPABASE_STORE_TABLE || 'store_settings';
         const DEFAULT_LOGO_IMAGE = 'images/logo.svg';
+        const DEFAULT_MENU_IMAGE = 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=1200';
 
         function getSupabaseClient() {
             if (!window.supabase) {
@@ -125,7 +126,7 @@
                 name: item.name,
                 description: item.description || '',
                 price: item.price || '',
-                image: item.image || '',
+                image: item.image || DEFAULT_MENU_IMAGE,
                 badge: item.badge || ''
             }));
         }
@@ -392,21 +393,23 @@
                         ease: 'none'
                     });
 
-                    // Menu cards animation
-                    gsap.utils.toArray('.menu-card').forEach((card, i) => {
-                        gsap.from(card, {
-                            scrollTrigger: {
-                                trigger: card,
-                                start: 'top bottom-=100',
-                                toggleActions: 'play none none reverse'
-                            },
-                            y: 100,
-                            opacity: 0,
-                            duration: 0.8,
-                            delay: i * 0.1,
-                            ease: 'power3.out'
+                    // Skip heavy menu-card animations on mobile to keep cards visible and stable.
+                    if (window.innerWidth > 768) {
+                        gsap.utils.toArray('.menu-card').forEach((card, i) => {
+                            gsap.from(card, {
+                                scrollTrigger: {
+                                    trigger: card,
+                                    start: 'top bottom-=100',
+                                    toggleActions: 'play none none reverse'
+                                },
+                                y: 100,
+                                opacity: 0,
+                                duration: 0.8,
+                                delay: i * 0.1,
+                                ease: 'power3.out'
+                            });
                         });
-                    });
+                    }
 
                     // Review cards animation
                     gsap.utils.toArray('.review-card').forEach((card, i) => {
@@ -589,7 +592,18 @@
                                 {filteredItems.map(item => (
                                     <div key={item.id} className={`menu-card ${item.category === 'food' ? 'food-card' : ''}`}>
                                         <div className="card-image-container">
-                                            <img src={item.image} alt={item.name} className="card-image" loading="lazy" decoding="async" />
+                                            <img
+                                                src={item.image || DEFAULT_MENU_IMAGE}
+                                                alt={item.name}
+                                                className="card-image"
+                                                loading="lazy"
+                                                decoding="async"
+                                                onError={(event) => {
+                                                    if (event.currentTarget.src.indexOf(DEFAULT_MENU_IMAGE) === -1) {
+                                                        event.currentTarget.src = DEFAULT_MENU_IMAGE;
+                                                    }
+                                                }}
+                                            />
                                             {item.badge && <div className="card-badge">{item.badge}</div>}
                                             <div className="liquid-effect"></div>
                                         </div>
@@ -608,6 +622,13 @@
                                         </div>
                                     </div>
                                 ))}
+                                {filteredItems.length === 0 && (
+                                    <div className="menu-empty-state">
+                                        <i className="fas fa-utensils"></i>
+                                        <h3>No Items Added Yet</h3>
+                                        <p>Add menu items from Admin Panel and save to cloud.</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </section>
