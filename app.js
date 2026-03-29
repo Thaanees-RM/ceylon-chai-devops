@@ -506,7 +506,6 @@
                                 <li><a href="#gallery" onClick={() => setIsMobileMenuOpen(false)}>Gallery</a></li>
                                 <li><a href="#reviews" onClick={() => setIsMobileMenuOpen(false)}>Reviews</a></li>
                                 <li><a href="#contact" onClick={() => setIsMobileMenuOpen(false)}>Contact</a></li>
-                                <li><a href="admin.html" target="_blank" rel="noreferrer">Admin</a></li>
                             </ul>
                             <button
                                 className={`mobile-menu-btn ${isMobileMenuOpen ? 'open' : ''}`}
@@ -626,7 +625,7 @@
                                     <div className="menu-empty-state">
                                         <i className="fas fa-utensils"></i>
                                         <h3>No Items Added Yet</h3>
-                                        <p>Add menu items from Admin Panel and save to cloud.</p>
+                                        <p>Menu updates will appear here soon.</p>
                                     </div>
                                 )}
                             </div>
@@ -746,7 +745,6 @@
                                 <a href="#reviews">Reviews</a>
                                 <a href="#gallery">Gallery</a>
                                 <a href="#contact">Contact</a>
-                                <a href="admin.html" target="_blank" rel="noreferrer">Admin Panel</a>
                             </div>
                             <div className="footer-section">
                                 <h3>Opening Hours</h3>
@@ -773,11 +771,6 @@
                             {cartCount > 0 && <div className="cart-count">{cartCount}</div>}
                         </div>
                     </div>
-
-                    <a href="admin.html" target="_blank" rel="noreferrer" className="admin-float-btn" aria-label="Open Admin Panel">
-                        <i className="fas fa-user-cog"></i>
-                        <span>Admin</span>
-                    </a>
 
                     {/* Scroll to Top */}
                     <div 
