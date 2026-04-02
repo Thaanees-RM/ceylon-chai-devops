@@ -1,0 +1,58 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ceylon-frontend
+    ports:
+      - "8081:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ceylon-backend
+    environment:
+      PORT: 5000
+      HOST: 0.0.0.0
+      MONGODB_URI: mongodb://mongodb:27017/chaiDB
+      CORS_ORIGIN: "*"
+      API_MAX_JSON_SIZE: 1mb
+      MAX_IMAGE_SIZE_BYTES: 5242880
+    volumes:
+      - backend_uploads:/app/uploads
+    ports:
+      - "5000:5000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:5000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:7
+    container_name: ceylon-mongodb
+    environment:
+      MONGO_INITDB_DATABASE: chaiDB
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+  backend_uploads:
