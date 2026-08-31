@@ -41,7 +41,7 @@ jobs:
           cp styles.css site/
           cp app.js site/
           cp app.bundle.js site/
-          cp supabase-config.js site/
+          cp api-config.js site/
           cp admin.html site/
           cp admin.css site/
           cp admin.js site/

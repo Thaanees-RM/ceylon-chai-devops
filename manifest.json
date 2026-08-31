@@ -1,0 +1,17 @@
+{
+  "name": "Ceylon Chai",
+  "short_name": "Ceylon Chai",
+  "description": "Authentic Tea & Food Experience",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#0f1619",
+  "theme_color": "#0f1619",
+  "icons": [
+    {
+      "src": "images/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
