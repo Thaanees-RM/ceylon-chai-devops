@@ -725,6 +725,11 @@
                     </div>
                     {/* 3D Scroll-Reactive Background */}
                     <canvas id="bg-canvas" aria-hidden="true"></canvas>
+                    <div className="ambient-glow" aria-hidden="true">
+                        <span className="glow-blob glow-blob-1"></span>
+                        <span className="glow-blob glow-blob-2"></span>
+                        <span className="glow-blob glow-blob-3"></span>
+                    </div>
                     <div className="grain-overlay"></div>
                     {/* Navigation */}
                     <nav>
