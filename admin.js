@@ -9,9 +9,8 @@ window.__ceylonAdminInitialized = true;
 
 const MENU_STORAGE_KEY = 'ceylonChaiMenuItems';
 const STORE_STORAGE_KEY = 'ceylonChaiStoreInfo';
-const MENU_TABLE = window.SUPABASE_MENU_TABLE || 'menu_items';
-const STORE_TABLE = window.SUPABASE_STORE_TABLE || 'store_settings';
-const STORAGE_BUCKET = window.SUPABASE_STORAGE_BUCKET || 'assets';
+const AUTH_TOKEN_KEY = 'ceylonAdminToken';
+const AUTH_USERNAME_KEY = 'ceylonAdminUsername';
 const DEFAULT_LOGO_IMAGE = 'images/logo.svg';
 
 const DEFAULT_MENU_ITEMS = [
@@ -41,15 +40,254 @@ const DEFAULT_STORE_INFO = {
 let menuItems = [];
 let storeInfo = {};
 
-function getSupabaseClient() {
-    if (!window.supabase || !window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) {
-        return null;
-    }
+const apiURL = window.API_URL;
 
-    return window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+/* ============================== Auth ============================== */
+
+function getToken() {
+    return localStorage.getItem(AUTH_TOKEN_KEY);
 }
 
-const supabaseClient = getSupabaseClient();
+function setSession(token, username) {
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+    localStorage.setItem(AUTH_USERNAME_KEY, username);
+}
+
+function clearSession() {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(AUTH_USERNAME_KEY);
+}
+
+// fetch wrapper for authenticated (write) requests. Attaches the bearer
+// token and, on a 401, drops the stored session and bounces back to the
+// login screen -- the token is expired/invalid either way, so there's
+// nothing more a caller can do with the response.
+async function authFetch(url, options = {}) {
+    const token = getToken();
+    const headers = { ...(options.headers || {}) };
+    if (token) {
+        headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, { ...options, headers });
+
+    if (response.status === 401) {
+        clearSession();
+        showAuthScreen('login', 'Your session expired. Please sign in again.');
+    }
+
+    return response;
+}
+
+// Authoritative validation lives on the server (backend/auth.js); this is
+// only for live UI feedback and must stay in sync with it.
+const PASSWORD_RULES = [
+    { id: 'length', label: 'At least 12 characters', test: (pw) => pw.length >= 12 },
+    { id: 'lower', label: 'One lowercase letter', test: (pw) => /[a-z]/.test(pw) },
+    { id: 'upper', label: 'One uppercase letter', test: (pw) => /[A-Z]/.test(pw) },
+    { id: 'digit', label: 'One number', test: (pw) => /[0-9]/.test(pw) },
+    { id: 'special', label: 'One special character', test: (pw) => /[^A-Za-z0-9]/.test(pw) }
+];
+
+function renderPasswordRules(listEl, password) {
+    if (!listEl) return false;
+    listEl.innerHTML = '';
+    let allMet = true;
+
+    PASSWORD_RULES.forEach((rule) => {
+        const met = rule.test(password || '');
+        if (!met) allMet = false;
+
+        const li = document.createElement('li');
+        li.textContent = rule.label;
+        li.className = met ? 'met' : '';
+        listEl.appendChild(li);
+    });
+
+    return allMet;
+}
+
+function showAuthScreen(mode, message) {
+    document.getElementById('adminShell').hidden = true;
+    document.getElementById('authScreen').hidden = false;
+
+    const loginForm = document.getElementById('loginForm');
+    const forgotForm = document.getElementById('forgotForm');
+    const showForgotBtn = document.getElementById('showForgotBtn');
+    const showLoginBtn = document.getElementById('showLoginBtn');
+
+    if (mode === 'forgot') {
+        loginForm.hidden = true;
+        forgotForm.hidden = false;
+        showForgotBtn.hidden = true;
+        showLoginBtn.hidden = false;
+    } else {
+        loginForm.hidden = false;
+        forgotForm.hidden = true;
+        showForgotBtn.hidden = false;
+        showLoginBtn.hidden = true;
+    }
+
+    document.getElementById('loginError').textContent = mode === 'login' && message ? message : '';
+}
+
+async function showAdminShellFor(username) {
+    document.getElementById('authScreen').hidden = true;
+    document.getElementById('adminShell').hidden = false;
+    document.getElementById('sessionUsername').textContent = username;
+
+    try {
+        await loadFromApi();
+        showStatus('Connected to server database.');
+    } catch (error) {
+        console.error(error);
+        showStatus('Failed to load menu/store data from the server.', true);
+        menuItems = [];
+        storeInfo = { ...DEFAULT_STORE_INFO };
+    }
+
+    fillStoreForm();
+    renderMenuItems();
+}
+
+async function handleLoginSubmit(event) {
+    event.preventDefault();
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const errorEl = document.getElementById('loginError');
+    errorEl.textContent = '';
+
+    try {
+        const response = await fetch(`${apiURL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            errorEl.textContent = data.error || 'Sign in failed.';
+            return;
+        }
+
+        setSession(data.token, data.username);
+        document.getElementById('loginPassword').value = '';
+        await showAdminShellFor(data.username);
+    } catch (error) {
+        console.error(error);
+        errorEl.textContent = 'Could not reach the server. Please try again.';
+    }
+}
+
+async function handleForgotSubmit(event) {
+    event.preventDefault();
+    const username = document.getElementById('forgotUsername').value.trim();
+    const recoveryCode = document.getElementById('forgotRecoveryCode').value.trim();
+    const newPassword = document.getElementById('forgotNewPassword').value;
+    const confirmPassword = document.getElementById('forgotConfirmPassword').value;
+    const errorEl = document.getElementById('forgotError');
+    const successEl = document.getElementById('forgotSuccess');
+    const codeBox = document.getElementById('forgotRecoveryCodeBox');
+
+    errorEl.textContent = '';
+    successEl.hidden = true;
+    codeBox.hidden = true;
+
+    if (newPassword !== confirmPassword) {
+        errorEl.textContent = 'New password and confirmation do not match.';
+        return;
+    }
+
+    try {
+        const response = await fetch(`${apiURL}/auth/forgot-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, recoveryCode, newPassword })
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            errorEl.textContent = data.error || 'Password reset failed.';
+            return;
+        }
+
+        successEl.textContent = 'Password reset. Save your new recovery code below, then sign in.';
+        successEl.hidden = false;
+        codeBox.textContent = data.recoveryCode;
+        codeBox.hidden = false;
+        document.getElementById('forgotForm').reset();
+        renderPasswordRules(document.getElementById('forgotPasswordRules'), '');
+    } catch (error) {
+        console.error(error);
+        errorEl.textContent = 'Could not reach the server. Please try again.';
+    }
+}
+
+async function handleChangePasswordSubmit(event) {
+    event.preventDefault();
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+    const statusEl = document.getElementById('changePasswordStatus');
+    statusEl.style.color = '';
+    statusEl.textContent = '';
+
+    if (newPassword !== confirmNewPassword) {
+        statusEl.textContent = 'New password and confirmation do not match.';
+        return;
+    }
+
+    try {
+        const response = await authFetch(`${apiURL}/auth/change-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ currentPassword, newPassword })
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            statusEl.textContent = data.error || 'Could not update password.';
+            return;
+        }
+
+        statusEl.style.color = '#9de5a6';
+        statusEl.textContent = 'Password updated.';
+        document.getElementById('changePasswordForm').reset();
+        renderPasswordRules(document.getElementById('changePasswordRules'), '');
+    } catch (error) {
+        console.error(error);
+        statusEl.textContent = 'Could not reach the server. Please try again.';
+    }
+}
+
+function handleLogout() {
+    clearSession();
+    showAuthScreen('login');
+    document.getElementById('loginForm').reset();
+}
+
+/* ============================ Button ripple ============================ */
+
+document.addEventListener('click', (event) => {
+    const btn = event.target.closest('.btn');
+    if (!btn) return;
+
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 1.6;
+    const ripple = document.createElement('span');
+    ripple.className = 'btn-ripple';
+    ripple.style.width = ripple.style.height = `${size}px`;
+    ripple.style.left = `${event.clientX - rect.left - size / 2}px`;
+    ripple.style.top = `${event.clientY - rect.top - size / 2}px`;
+
+    btn.appendChild(ripple);
+    ripple.addEventListener('animationend', () => ripple.remove());
+});
+
+/* ============================== Store data ============================== */
 
 function parseStoredData(key, fallback) {
     try {
@@ -86,6 +324,16 @@ function fillStoreForm() {
     document.getElementById('storeMapUrl').value = storeInfo.mapUrl || '';
     document.getElementById('storeAnnouncement').value = storeInfo.announcement || '';
     document.getElementById('storeLogoPreview').src = storeInfo.logoImage || DEFAULT_LOGO_IMAGE;
+
+    if (storeInfo.gallery && Array.isArray(storeInfo.gallery)) {
+        for (let i = 0; i < 3; i++) {
+            const item = storeInfo.gallery[i] || {};
+            const titleInput = document.getElementById(`galleryTitle${i+1}`);
+            const previewImg = document.getElementById(`galleryPreview${i+1}`);
+            if (titleInput) titleInput.value = item.title || '';
+            if (previewImg) previewImg.src = item.url || '';
+        }
+    }
 }
 
 function collectStoreForm() {
@@ -98,7 +346,21 @@ function collectStoreForm() {
         instagramUrl: document.getElementById('storeInstagramUrl').value.trim(),
         mapUrl: document.getElementById('storeMapUrl').value.trim(),
         announcement: document.getElementById('storeAnnouncement').value.trim(),
-        logoImage: storeInfo.logoImage || DEFAULT_LOGO_IMAGE
+        logoImage: storeInfo.logoImage || DEFAULT_LOGO_IMAGE,
+        gallery: [
+            {
+                title: document.getElementById('galleryTitle1') ? document.getElementById('galleryTitle1').value.trim() : '',
+                url: document.getElementById('galleryPreview1') ? document.getElementById('galleryPreview1').src : ''
+            },
+            {
+                title: document.getElementById('galleryTitle2') ? document.getElementById('galleryTitle2').value.trim() : '',
+                url: document.getElementById('galleryPreview2') ? document.getElementById('galleryPreview2').src : ''
+            },
+            {
+                title: document.getElementById('galleryTitle3') ? document.getElementById('galleryTitle3').value.trim() : '',
+                url: document.getElementById('galleryPreview3') ? document.getElementById('galleryPreview3').src : ''
+            }
+        ]
     };
 }
 
@@ -112,20 +374,20 @@ function fileToDataUrl(file) {
 }
 
 async function uploadImageFile(file, folder) {
-    if (!supabaseClient) {
-        return fileToDataUrl(file);
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const response = await authFetch(`${apiURL}/upload`, {
+        method: 'POST',
+        body: formData
+    });
+
+    if (!response.ok) {
+        throw new Error('Image upload failed');
     }
 
-    const safeName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
-    const filePath = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`;
-    const { error } = await supabaseClient.storage.from(STORAGE_BUCKET).upload(filePath, file, { upsert: true });
-
-    if (error) {
-        throw error;
-    }
-
-    const { data } = supabaseClient.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-    return data.publicUrl;
+    const result = await response.json();
+    return result.imageUrl;
 }
 
 function renderMenuItems() {
@@ -204,88 +466,39 @@ function addMenuItem() {
 async function saveAll() {
     storeInfo = collectStoreForm();
 
-    if (!supabaseClient) {
+    try {
+        const storeResponse = await authFetch(`${apiURL}/store-settings`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(storeInfo)
+        });
+
+        if (!storeResponse.ok) {
+            throw new Error('Failed to save store settings to server.');
+        }
+
+        const menuResponse = await authFetch(`${apiURL}/products/bulk`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(menuItems)
+        });
+
+        if (!menuResponse.ok) {
+            throw new Error('Failed to save menu items to server.');
+        }
+
+        // Local cache only -- a resilience fallback for display, not a security boundary.
         localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(menuItems));
         localStorage.setItem(STORE_STORAGE_KEY, JSON.stringify(storeInfo));
-        showStatus('Saved locally in this browser.');
-        return;
-    }
 
-    try {
-        const menuPayload = menuItems.map(item => ({
-            id: Number(item.id),
-            category: item.category,
-            name: item.name,
-            description: item.description || '',
-            price: item.price || '',
-            image: item.image || '',
-            badge: item.badge || ''
-        }));
-
-        if (menuPayload.length > 0) {
-            const { error: upsertMenuError } = await supabaseClient
-                .from(MENU_TABLE)
-                .upsert(menuPayload, { onConflict: 'id' });
-            if (upsertMenuError) {
-                throw upsertMenuError;
-            }
-
-            const { data: existingMenu, error: existingMenuError } = await supabaseClient
-                .from(MENU_TABLE)
-                .select('id');
-            if (existingMenuError) {
-                throw existingMenuError;
-            }
-
-            const currentIds = menuPayload.map(item => item.id);
-            const staleIds = (existingMenu || [])
-                .map(item => item.id)
-                .filter(id => !currentIds.includes(id));
-
-            if (staleIds.length > 0) {
-                const { error: deleteMenuError } = await supabaseClient
-                    .from(MENU_TABLE)
-                    .delete()
-                    .in('id', staleIds);
-                if (deleteMenuError) {
-                    throw deleteMenuError;
-                }
-            }
-        } else {
-            const { error: clearAllMenuError } = await supabaseClient
-                .from(MENU_TABLE)
-                .delete()
-                .gte('id', 0);
-
-            if (clearAllMenuError) {
-                throw clearAllMenuError;
-            }
-        }
-
-        const storePayload = {
-            id: 1,
-            opening_days: storeInfo.openingDays,
-            opening_hours: storeInfo.openingHours,
-            phone: storeInfo.phone,
-            address: storeInfo.address,
-            map_url: storeInfo.mapUrl,
-            instagram_handle: storeInfo.instagramHandle,
-            instagram_url: storeInfo.instagramUrl,
-            announcement: storeInfo.announcement,
-            logo_image: storeInfo.logoImage
-        };
-
-        const { error: upsertStoreError } = await supabaseClient
-            .from(STORE_TABLE)
-            .upsert(storePayload, { onConflict: 'id' });
-        if (upsertStoreError) {
-            throw upsertStoreError;
-        }
-
-        showStatus('Saved to cloud successfully. All devices will see updates.');
+        showStatus('Saved to server successfully.');
     } catch (error) {
         console.error(error);
-        showStatus('Cloud save failed. Check Supabase setup and policies.', true);
+        showStatus('Server save failed. Changes were not published.', true);
     }
 }
 
@@ -293,9 +506,6 @@ function resetToDefault() {
     if (!window.confirm('Reset all menu and store details to default values?')) {
         return;
     }
-
-    localStorage.removeItem(MENU_STORAGE_KEY);
-    localStorage.removeItem(STORE_STORAGE_KEY);
 
     menuItems = JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS));
     storeInfo = { ...DEFAULT_STORE_INFO };
@@ -322,6 +532,23 @@ document.addEventListener('click', (event) => {
         return;
     }
 
+    if (action === 'clear-gallery' && Number.isInteger(index)) {
+        if (!storeInfo.gallery) storeInfo.gallery = [];
+        if (!storeInfo.gallery[index - 1]) storeInfo.gallery[index - 1] = {};
+        storeInfo.gallery[index - 1].url = '';
+        storeInfo.gallery[index - 1].title = '';
+
+        const previewImg = document.getElementById(`galleryPreview${index}`);
+        if (previewImg) previewImg.src = '';
+
+        const titleInput = document.getElementById(`galleryTitle${index}`);
+        if (titleInput) titleInput.value = '';
+
+        const fileInput = document.getElementById(`galleryFile${index}`);
+        if (fileInput) fileInput.value = '';
+        return;
+    }
+
     if (target.id === 'clearStoreLogoBtn') {
         storeInfo.logoImage = DEFAULT_LOGO_IMAGE;
         document.getElementById('storeLogoPreview').src = storeInfo.logoImage;
@@ -330,6 +557,17 @@ document.addEventListener('click', (event) => {
 
 document.addEventListener('input', (event) => {
     const target = event.target;
+
+    if (target.id === 'forgotNewPassword') {
+        renderPasswordRules(document.getElementById('forgotPasswordRules'), target.value);
+        return;
+    }
+
+    if (target.id === 'newPassword') {
+        renderPasswordRules(document.getElementById('changePasswordRules'), target.value);
+        return;
+    }
+
     const field = target.dataset.field;
     const index = Number(target.dataset.index);
 
@@ -367,6 +605,33 @@ document.addEventListener('change', async (event) => {
         return;
     }
 
+    if (target.id && target.id.startsWith('galleryFile')) {
+        const indexStr = target.id.replace('galleryFile', '');
+        const index = parseInt(indexStr, 10);
+
+        const file = target.files && target.files[0];
+        if (!file) return;
+
+        try {
+            const uploadedUrl = await uploadImageFile(file, 'gallery');
+            const preview = document.getElementById(`galleryPreview${index}`);
+            if (preview) {
+                preview.src = uploadedUrl;
+            }
+            if (!storeInfo.gallery) storeInfo.gallery = [];
+            if (!storeInfo.gallery[index - 1]) storeInfo.gallery[index - 1] = {};
+            storeInfo.gallery[index - 1].url = uploadedUrl;
+
+            await saveAll();
+        } catch (error) {
+            console.error(error);
+            showStatus(`Failed to upload gallery image ${index}.`, true);
+        }
+
+        target.value = '';
+        return;
+    }
+
     const fileField = target.dataset.fileField;
     const index = Number(target.dataset.index);
     if (fileField !== 'image' || !Number.isInteger(index) || !menuItems[index]) {
@@ -388,15 +653,12 @@ document.addEventListener('change', async (event) => {
     }
 });
 
-async function loadFromSupabase() {
-    const { data: menuData, error: menuError } = await supabaseClient
-        .from(MENU_TABLE)
-        .select('*')
-        .order('id', { ascending: true });
-
-    if (menuError) {
-        throw menuError;
+async function loadFromApi() {
+    const menuResponse = await fetch(`${apiURL}/products`);
+    if (!menuResponse.ok) {
+        throw new Error('Failed to fetch products');
     }
+    const menuData = await menuResponse.json();
 
     if (Array.isArray(menuData)) {
         menuItems = menuData.map(item => ({
@@ -412,57 +674,95 @@ async function loadFromSupabase() {
         menuItems = JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS));
     }
 
-    const { data: storeData, error: storeError } = await supabaseClient
-        .from(STORE_TABLE)
-        .select('*')
-        .eq('id', 1)
-        .single();
-
-    if (storeError && storeError.code !== 'PGRST116') {
-        throw storeError;
+    const storeResponse = await fetch(`${apiURL}/store-settings`);
+    if (!storeResponse.ok) {
+        throw new Error('Failed to fetch store settings');
     }
+    const storeData = await storeResponse.json();
 
     storeInfo = {
         ...DEFAULT_STORE_INFO,
         ...(storeData
             ? {
-                openingDays: storeData.opening_days || DEFAULT_STORE_INFO.openingDays,
-                openingHours: storeData.opening_hours || DEFAULT_STORE_INFO.openingHours,
+                openingDays: storeData.openingDays || storeData.opening_days || DEFAULT_STORE_INFO.openingDays,
+                openingHours: storeData.openingHours || storeData.opening_hours || DEFAULT_STORE_INFO.openingHours,
                 phone: storeData.phone || DEFAULT_STORE_INFO.phone,
                 address: storeData.address || DEFAULT_STORE_INFO.address,
-                mapUrl: storeData.map_url || DEFAULT_STORE_INFO.mapUrl,
-                instagramHandle: storeData.instagram_handle || DEFAULT_STORE_INFO.instagramHandle,
-                instagramUrl: storeData.instagram_url || DEFAULT_STORE_INFO.instagramUrl,
+                mapUrl: storeData.mapUrl || storeData.map_url || DEFAULT_STORE_INFO.mapUrl,
+                instagramHandle: storeData.instagramHandle || storeData.instagram_handle || DEFAULT_STORE_INFO.instagramHandle,
+                instagramUrl: storeData.instagramUrl || storeData.instagram_url || DEFAULT_STORE_INFO.instagramUrl,
                 announcement: storeData.announcement || DEFAULT_STORE_INFO.announcement,
-                logoImage: storeData.logo_image || DEFAULT_STORE_INFO.logoImage
+                logoImage: storeData.logoImage || storeData.logo_image || DEFAULT_STORE_INFO.logoImage,
+                gallery: storeData.gallery || DEFAULT_STORE_INFO.gallery
             }
             : {})
     };
 }
 
+/* ============================== Bootstrap ============================== */
+
 document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        if (supabaseClient) {
-            await loadFromSupabase();
-            showStatus('Connected to Supabase cloud data.');
-        } else {
-            menuItems = parseStoredData(MENU_STORAGE_KEY, JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS)));
-            storeInfo = { ...DEFAULT_STORE_INFO, ...parseStoredData(STORE_STORAGE_KEY, {}) };
-            showStatus('Supabase not configured. Local browser mode is active.');
-        }
-    } catch (error) {
-        console.error(error);
-        menuItems = parseStoredData(MENU_STORAGE_KEY, JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS)));
-        storeInfo = { ...DEFAULT_STORE_INFO, ...parseStoredData(STORE_STORAGE_KEY, {}) };
-        showStatus('Cloud load failed. Local browser mode is active.');
-    }
-
-    fillStoreForm();
-    renderMenuItems();
-
     document.getElementById('addMenuItemBtn').addEventListener('click', addMenuItem);
     document.getElementById('saveAllBtn').addEventListener('click', saveAll);
     document.getElementById('resetBtn').addEventListener('click', resetToDefault);
+    document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+    document.getElementById('loginForm').addEventListener('submit', handleLoginSubmit);
+    document.getElementById('forgotForm').addEventListener('submit', handleForgotSubmit);
+    document.getElementById('changePasswordForm').addEventListener('submit', handleChangePasswordSubmit);
+
+    document.getElementById('showForgotBtn').addEventListener('click', () => showAuthScreen('forgot'));
+    document.getElementById('showLoginBtn').addEventListener('click', () => showAuthScreen('login'));
+
+    if (!apiURL) {
+        document.getElementById('authScreen').hidden = false;
+        document.getElementById('adminShell').hidden = true;
+        document.getElementById('loginForm').hidden = true;
+        document.getElementById('forgotForm').hidden = true;
+        document.getElementById('showForgotBtn').hidden = true;
+        document.querySelector('.auth-footer').insertAdjacentHTML(
+            'afterbegin',
+            '<p style="color:#e9776c;">No backend is configured (api-config.js). The admin panel requires a connected server and cannot run in an unauthenticated local-only mode.</p>'
+        );
+        return;
+    }
+
+    try {
+        const statusResponse = await fetch(`${apiURL}/auth/status`);
+        const statusData = await statusResponse.json().catch(() => ({}));
+
+        if (!statusData.configured) {
+            showAuthScreen('login');
+            document.getElementById('loginForm').hidden = true;
+            document.getElementById('showForgotBtn').hidden = true;
+            document.querySelector('.auth-footer').insertAdjacentHTML(
+                'afterbegin',
+                '<p style="color:#e9776c;">No admin account exists yet. Set ADMIN_USERNAME and ADMIN_PASSWORD in the backend environment and restart the server.</p>'
+            );
+            return;
+        }
+    } catch (error) {
+        console.error(error);
+        showAuthScreen('login', 'Could not reach the server.');
+        return;
+    }
+
+    const token = getToken();
+    if (!token) {
+        showAuthScreen('login');
+        return;
+    }
+
+    try {
+        const meResponse = await authFetch(`${apiURL}/auth/me`);
+        if (!meResponse.ok) {
+            throw new Error('Session invalid');
+        }
+        const meData = await meResponse.json();
+        await showAdminShellFor(meData.username);
+    } catch (error) {
+        clearSession();
+        showAuthScreen('login');
+    }
 });
 
 })();

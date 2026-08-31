@@ -6,16 +6,77 @@
     <title>Ceylon Chai Admin Panel</title>
     <link rel="icon" href="images/favicon.svg" type="image/svg+xml" sizes="any">
     <link rel="shortcut icon" href="images/favicon.svg" type="image/svg+xml">
+    <link rel="manifest" href="manifest.json">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="admin.css">
+    <link rel="stylesheet" href="admin.css?v=2">
 </head>
 <body>
-    <div class="admin-shell">
+    <div id="authScreen" class="auth-screen">
+        <div class="auth-card">
+            <div class="auth-brand">
+                <img src="images/logo.svg" alt="Ceylon Chai logo">
+                <h1>Ceylon Chai</h1>
+                <p>Admin Access</p>
+            </div>
+
+            <form id="loginForm" class="auth-form" autocomplete="on">
+                <div class="auth-field">
+                    <label for="loginUsername">Username</label>
+                    <input id="loginUsername" type="text" autocomplete="username" required>
+                </div>
+                <div class="auth-field">
+                    <label for="loginPassword">Password</label>
+                    <input id="loginPassword" type="password" autocomplete="current-password" required>
+                </div>
+                <div id="loginError" class="auth-error" aria-live="polite"></div>
+                <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+            </form>
+
+            <form id="forgotForm" class="auth-form" autocomplete="off" hidden>
+                <div class="auth-field">
+                    <label for="forgotUsername">Username</label>
+                    <input id="forgotUsername" type="text" autocomplete="username" required>
+                </div>
+                <div class="auth-field">
+                    <label for="forgotRecoveryCode">Recovery Code</label>
+                    <input id="forgotRecoveryCode" type="text" placeholder="XXXX-XXXX-XXXX" required>
+                </div>
+                <div class="auth-field">
+                    <label for="forgotNewPassword">New Password</label>
+                    <input id="forgotNewPassword" type="password" autocomplete="new-password" required>
+                    <ul id="forgotPasswordRules" class="password-rules"></ul>
+                </div>
+                <div class="auth-field">
+                    <label for="forgotConfirmPassword">Confirm New Password</label>
+                    <input id="forgotConfirmPassword" type="password" autocomplete="new-password" required>
+                </div>
+                <div id="forgotError" class="auth-error" aria-live="polite"></div>
+                <div id="forgotSuccess" class="auth-success" aria-live="polite" hidden></div>
+                <div id="forgotRecoveryCodeBox" class="recovery-code-box" hidden></div>
+                <button type="submit" class="btn btn-primary btn-block">Reset Password</button>
+            </form>
+
+            <div class="auth-footer">
+                <button type="button" id="showForgotBtn" class="btn-link">Forgot password?</button>
+                <button type="button" id="showLoginBtn" class="btn-link" hidden>Back to Sign In</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="adminShell" class="admin-shell" hidden>
         <header class="admin-header">
-            <h1>Ceylon Chai Admin Panel</h1>
-            <p>Update menu, prices, food photos, shop details, and announcements.</p>
+            <div class="admin-header-top">
+                <div>
+                    <h1>Ceylon Chai Admin Panel</h1>
+                    <p>Update menu, prices, food photos, shop details, and announcements.</p>
+                </div>
+                <div class="admin-session">
+                    <span>Signed in as <strong id="sessionUsername"></strong></span>
+                    <button id="logoutBtn" class="btn btn-secondary btn-sm" type="button">Log Out</button>
+                </div>
+            </div>
             <div class="admin-actions">
                 <a href="index.html" class="btn btn-secondary">View Website</a>
                 <button id="saveAllBtn" class="btn btn-primary" type="button">Save All Changes</button>
@@ -63,6 +124,51 @@
                         </div>
                     </div>
                 </div>
+        </section>
+
+            <section class="card">
+                <h2>Gallery Configuration</h2>
+                <div class="grid three-col">
+                    <div class="form-group">
+                        <label>Image 1 Title
+                            <input id="galleryTitle1" type="text" placeholder="Brewing Perfection">
+                        </label>
+                        <div class="image-field-head">
+                            <label for="galleryFile1">Image 1 File</label>
+                            <button id="clearGalleryBtn1" class="btn btn-danger btn-sm" type="button" data-action="clear-gallery" data-index="1">Delete</button>
+                        </div>
+                        <input id="galleryFile1" type="file" accept="image/*">
+                        <div class="image-preview-wrap">
+                            <img id="galleryPreview1" class="image-preview" alt="Gallery 1 preview" src="https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=500">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Image 2 Title
+                            <input id="galleryTitle2" type="text" placeholder="Fresh Ingredients">
+                        </label>
+                        <div class="image-field-head">
+                            <label for="galleryFile2">Image 2 File</label>
+                            <button id="clearGalleryBtn2" class="btn btn-danger btn-sm" type="button" data-action="clear-gallery" data-index="2">Delete</button>
+                        </div>
+                        <input id="galleryFile2" type="file" accept="image/*">
+                        <div class="image-preview-wrap">
+                            <img id="galleryPreview2" class="image-preview" alt="Gallery 2 preview" src="https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=500">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Image 3 Title
+                            <input id="galleryTitle3" type="text" placeholder="Cozy Atmosphere">
+                        </label>
+                        <div class="image-field-head">
+                            <label for="galleryFile3">Image 3 File</label>
+                            <button id="clearGalleryBtn3" class="btn btn-danger btn-sm" type="button" data-action="clear-gallery" data-index="3">Delete</button>
+                        </div>
+                        <input id="galleryFile3" type="file" accept="image/*">
+                        <div class="image-preview-wrap">
+                            <img id="galleryPreview3" class="image-preview" alt="Gallery 3 preview" src="https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=500">
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <section class="card">
@@ -72,11 +178,43 @@
                 </div>
                 <div id="menuItemsContainer" class="menu-items"></div>
             </section>
+
+            <section class="card">
+                <h2>Account Security</h2>
+                <form id="changePasswordForm" class="grid two-col">
+                    <label>Current Password
+                        <input id="currentPassword" type="password" autocomplete="current-password" required>
+                    </label>
+                    <label>New Password
+                        <input id="newPassword" type="password" autocomplete="new-password" required>
+                    </label>
+                    <div class="full">
+                        <ul id="changePasswordRules" class="password-rules"></ul>
+                    </div>
+                    <label>Confirm New Password
+                        <input id="confirmNewPassword" type="password" autocomplete="new-password" required>
+                    </label>
+                    <div class="full" style="display:flex; align-items:flex-end; gap:10px;">
+                        <button type="submit" class="btn btn-primary">Update Password</button>
+                        <span id="changePasswordStatus" class="auth-error" aria-live="polite"></span>
+                    </div>
+                </form>
+            </section>
         </main>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js"></script>
-    <script src="admin.js"></script>
+    <script src="api-config.js"></script>
+    <script src="admin.js?v=7"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js').then(registration => {
+                    console.log('ServiceWorker registration successful');
+                }).catch(err => {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
+    </script>
 </body>
 </html>

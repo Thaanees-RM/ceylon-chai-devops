@@ -5,6 +5,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const multer = require("multer");
 const cors = require("cors");
+const { ensureAdminSeeded, requireAuth, registerAuthRoutes } = require("./auth");
 
 const app = express();
 
@@ -38,9 +39,13 @@ const corsOptions = {
 
 const productSchema = new mongoose.Schema(
   {
+    id: { type: Number, default: null },
     name: { type: String, required: true, trim: true, maxlength: 120 },
-    price: { type: Number, required: true, min: 0 },
+    category: { type: String, default: 'food', trim: true },
+    description: { type: String, default: '', trim: true },
+    price: { type: String, required: true, trim: true },
     image: { type: String, default: null },
+    badge: { type: String, default: '', trim: true }
   },
   {
     timestamps: true,
@@ -49,6 +54,34 @@ const productSchema = new mongoose.Schema(
 );
 
 const Product = mongoose.model("Product", productSchema);
+
+const storeSettingsSchema = new mongoose.Schema(
+  {
+    id: { type: Number, required: true, unique: true, default: 1 },
+    openingDays: { type: String, default: 'Every Day' },
+    openingHours: { type: String, default: '5:00 PM - 2:00 AM' },
+    phone: { type: String, default: '+94 70 392 3931' },
+    address: { type: String, default: 'Sri Lanka' },
+    mapUrl: { type: String, default: 'https://maps.app.goo.gl/CTwFqKEPF2g95mrE9' },
+    instagramHandle: { type: String, default: '@ceylon_chaii' },
+    instagramUrl: { type: String, default: 'https://www.instagram.com/ceylon_chaii' },
+    announcement: { type: String, default: 'Weekend offer: 10% off selected tea and food combos.' },
+    logoImage: { type: String, default: 'images/logo.svg' },
+    gallery: {
+      type: [{ url: String, title: String }],
+      default: [
+        { url: 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=500', title: 'Brewing Perfection' },
+        { url: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=500', title: 'Fresh Ingredients' },
+        { url: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=500', title: 'Cozy Atmosphere' }
+      ]
+    }
+  },
+  {
+    versionKey: false
+  }
+);
+
+const StoreSettings = mongoose.model("StoreSettings", storeSettingsSchema);
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
@@ -73,9 +106,53 @@ const upload = multer({
   },
 });
 
-function parsePrice(value) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : NaN;
+function validateAndParsePrice(priceInput) {
+  if (priceInput === undefined || priceInput === null || priceInput === '') {
+    return { valid: false };
+  }
+  if (typeof priceInput === 'number') {
+    return { valid: priceInput >= 0, value: String(priceInput) };
+  }
+  const str = String(priceInput).trim();
+  if (!str) {
+    return { valid: false };
+  }
+  const match = str.match(/\d+(\.\d+)?/);
+  if (!match) {
+    return { valid: false };
+  }
+  const val = Number(match[0]);
+  if (val < 0) {
+    return { valid: false };
+  }
+  return { valid: true, value: str };
+}
+
+function formatProduct(product, req) {
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const doc = product.toObject ? product.toObject() : product;
+  if (doc.image && !doc.image.startsWith('http://') && !doc.image.startsWith('https://')) {
+    doc.image = `${baseUrl}/uploads/${doc.image}`;
+  }
+  return doc;
+}
+
+function formatStoreSettings(settings, req) {
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const doc = settings.toObject ? settings.toObject() : settings;
+  if (doc.logoImage && !doc.logoImage.startsWith('http://') && !doc.logoImage.startsWith('https://') && !doc.logoImage.startsWith('images/')) {
+    doc.logoImage = `${baseUrl}/uploads/${doc.logoImage}`;
+  }
+  if (doc.gallery && Array.isArray(doc.gallery)) {
+    doc.gallery = doc.gallery.map(item => {
+      let url = item.url;
+      if (url && !url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('images/')) {
+        url = `${baseUrl}/uploads/${url}`;
+      }
+      return { title: item.title, url: url };
+    });
+  }
+  return doc;
 }
 
 function getDatabaseState() {
@@ -116,6 +193,8 @@ app.use((req, res, next) => {
 
 app.use("/uploads", express.static(UPLOADS_DIR));
 
+registerAuthRoutes(app);
+
 app.get("/", (_req, res) => {
   res.json({
     service: "ceylon-chai-backend",
@@ -135,19 +214,20 @@ app.get("/health", (_req, res) => {
   });
 });
 
-app.get("/products", async (_req, res, next) => {
+app.get("/products", async (req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
   try {
-    const products = await Product.find().sort({ createdAt: -1 });
-    res.json(products);
+    const products = await Product.find().sort({ id: 1, createdAt: -1 });
+    res.json(products.map(p => formatProduct(p, req)));
   } catch (error) {
     next(error);
   }
 });
 
-app.post("/products", upload.single("image"), async (req, res, next) => {
+app.post("/products", requireAuth, upload.single("image"), async (req, res, next) => {
   try {
     const name = typeof req.body.name === "string" ? req.body.name.trim() : "";
-    const price = parsePrice(req.body.price);
+    const priceVal = validateAndParsePrice(req.body.price);
 
     if (!name) {
       await safeDeleteUpload(req.file && req.file.filename);
@@ -155,19 +235,23 @@ app.post("/products", upload.single("image"), async (req, res, next) => {
       return;
     }
 
-    if (!Number.isFinite(price) || price < 0) {
+    if (!priceVal.valid) {
       await safeDeleteUpload(req.file && req.file.filename);
-      res.status(400).json({ error: "Price must be a valid positive number" });
+      res.status(400).json({ error: "Price must be a valid positive number or formatted currency string" });
       return;
     }
 
     const product = await Product.create({
+      id: req.body.id ? Number(req.body.id) : null,
       name,
-      price,
-      image: req.file ? req.file.filename : null,
+      category: req.body.category || 'food',
+      description: req.body.description || '',
+      price: priceVal.value,
+      image: req.file ? req.file.filename : req.body.image || null,
+      badge: req.body.badge || ''
     });
 
-    res.status(201).json({ message: "Product added successfully", product });
+    res.status(201).json({ message: "Product added successfully", product: formatProduct(product, req) });
   } catch (error) {
     if (req.file) {
       await safeDeleteUpload(req.file.filename);
@@ -176,7 +260,55 @@ app.post("/products", upload.single("image"), async (req, res, next) => {
   }
 });
 
-app.delete("/products/:id", async (req, res, next) => {
+app.post("/products/bulk", requireAuth, async (req, res, next) => {
+  try {
+    const items = req.body;
+    if (!Array.isArray(items)) {
+      res.status(400).json({ error: "Expected array of menu items" });
+      return;
+    }
+
+    for (const item of items) {
+      if (!item.name) {
+        res.status(400).json({ error: "Name is required for all items" });
+        return;
+      }
+      const priceVal = validateAndParsePrice(item.price);
+      if (!priceVal.valid) {
+        res.status(400).json({ error: `Invalid price for item: ${item.name}` });
+        return;
+      }
+    }
+
+    await Product.deleteMany({});
+
+    const cleanFilename = (imgUrl) => {
+      if (!imgUrl) return null;
+      if (imgUrl.includes('/uploads/')) {
+        const parts = imgUrl.split('/uploads/');
+        return parts[parts.length - 1];
+      }
+      return imgUrl;
+    };
+
+    const payload = items.map(item => ({
+      id: item.id ? Number(item.id) : null,
+      name: item.name.trim(),
+      category: item.category || 'food',
+      description: item.description || '',
+      price: validateAndParsePrice(item.price).value,
+      image: cleanFilename(item.image),
+      badge: item.badge || ''
+    }));
+
+    const created = await Product.insertMany(payload);
+    res.json({ message: "Menu updated successfully", count: created.length });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete("/products/:id", requireAuth, async (req, res, next) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       res.status(400).json({ error: "Invalid product ID" });
@@ -189,8 +321,77 @@ app.delete("/products/:id", async (req, res, next) => {
       return;
     }
 
-    await safeDeleteUpload(deleted.image);
+    if (deleted.image) {
+      await safeDeleteUpload(deleted.image);
+    }
     res.json({ message: "Deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/upload", requireAuth, upload.single("image"), (req, res) => {
+  if (!req.file) {
+    res.status(400).json({ error: "No file uploaded" });
+    return;
+  }
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  res.json({ 
+    filename: req.file.filename,
+    imageUrl: `${baseUrl}/uploads/${req.file.filename}`
+  });
+});
+
+app.get("/store-settings", async (req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    let settings = await StoreSettings.findOne({ id: 1 });
+    if (!settings) {
+      settings = await StoreSettings.create({ id: 1 });
+    }
+    res.json(formatStoreSettings(settings, req));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put("/store-settings", requireAuth, async (req, res, next) => {
+  try {
+    const cleanLogoFilename = (logoUrl) => {
+      if (!logoUrl) return 'images/logo.svg';
+      if (logoUrl.includes('/uploads/')) {
+        const parts = logoUrl.split('/uploads/');
+        return parts[parts.length - 1];
+      }
+      return logoUrl;
+    };
+
+    const updateData = {
+      openingDays: req.body.openingDays,
+      openingHours: req.body.openingHours,
+      phone: req.body.phone,
+      address: req.body.address,
+      mapUrl: req.body.mapUrl,
+      instagramHandle: req.body.instagramHandle,
+      instagramUrl: req.body.instagramUrl,
+      announcement: req.body.announcement,
+      logoImage: cleanLogoFilename(req.body.logoImage)
+    };
+
+    if (req.body.gallery && Array.isArray(req.body.gallery)) {
+      updateData.gallery = req.body.gallery.map(item => ({
+        title: item.title || '',
+        url: cleanLogoFilename(item.url)
+      }));
+    }
+
+    let settings = await StoreSettings.findOneAndUpdate(
+      { id: 1 },
+      { $set: updateData },
+      { new: true, upsert: true }
+    );
+
+    res.json(formatStoreSettings(settings, req));
   } catch (error) {
     next(error);
   }
@@ -225,6 +426,8 @@ async function start() {
   });
 
   console.log("MongoDB connected");
+
+  await ensureAdminSeeded();
 
   server = app.listen(PORT, HOST, () => {
     console.log(`Backend running on http://${HOST}:${PORT}`);
