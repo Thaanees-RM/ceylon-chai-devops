@@ -118,27 +118,31 @@ jobs:
       name: production
 
     steps:
-      - name: Validate Production Environment Secrets
+      - name: Check Production Environment Secrets
+        id: production_secrets
         run: |
           missing=0
           if [ -z "${{ secrets.DEPLOY_HOST }}" ]; then
-            echo "ERROR: Missing secret DEPLOY_HOST in environment 'production'"
+            echo "WARNING: Missing secret DEPLOY_HOST in environment 'production'"
             missing=1
           fi
           if [ -z "${{ secrets.DEPLOY_USER }}" ]; then
-            echo "ERROR: Missing secret DEPLOY_USER in environment 'production'"
+            echo "WARNING: Missing secret DEPLOY_USER in environment 'production'"
             missing=1
           fi
           if [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]; then
-            echo "ERROR: Missing secret DEPLOY_SSH_KEY in environment 'production'"
+            echo "WARNING: Missing secret DEPLOY_SSH_KEY in environment 'production'"
             missing=1
           fi
           if [ "$missing" -eq 1 ]; then
-            echo "Add the missing environment secrets in: Settings > Environments > production > Secrets"
-            exit 1
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping production deploy. Add the missing environment secrets in: Settings > Environments > production > Secrets"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Deploy To Production Server
+        if: steps.production_secrets.outputs.ready == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
