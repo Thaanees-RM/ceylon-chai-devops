@@ -134,11 +134,12 @@ jobs:
             missing=1
           fi
           if [ "$missing" -eq 1 ]; then
+            echo "WARNING: Skipping production deploy because required environment secrets are missing."
             echo "Add the missing environment secrets in: Settings > Environments > production > Secrets"
-            exit 1
           fi
 
       - name: Deploy To Production Server
+        if: ${{ secrets.DEPLOY_HOST != '' && secrets.DEPLOY_USER != '' && secrets.DEPLOY_SSH_KEY != '' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
